@@ -101,3 +101,5 @@ Or point to any file at `http://localhost/even_non_existing_file.mkd`
 3. Add sanity checks :-/
 4. Make discount flags available as part of configuration
 5. Add sanity checks ;)
+6. Add support for HTML header & footer (including CSS)
+7. Add sanity checks :-D
