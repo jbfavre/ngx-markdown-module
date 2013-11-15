@@ -5,8 +5,9 @@ It has been developed and tested with Nginx 1.4.3
 
 This is an academic work to learn C and see how to develop an Nginx module.
 
-__It's likely to be insanely insecure, so... **DO NOT USE IT FOR PRODUCTION**
-You've been warned.__
+__It's likely to be insanely insecure, so... **DO NOT USE IT FOR PRODUCTION**.__
+
+You've been warned.
 
 This module uses [discount library](http://www.pell.portland.or.us/~orc/Code/discount/)
 
@@ -68,27 +69,26 @@ Markdown handler module exports 2 configuration options
 ### Sample Nginx configuration
 
     server {
-	listen 80 default_server;
-	server_name localhost;
+        listen 80 default_server;
+        server_name localhost;
 
-	root /var/www;
-	index index.html index.htm;
+        root /var/www;
+        index index.html index.htm;
 
-
-	location / {
-		autoindex on;
-		try_files $uri $uri/ =404;
-	}
+        location / {
+            autoindex on;
+            try_files $uri $uri/ =404;
+        }
         // Use Filter module
-	location ~ /*.md {
-		mdfilter on;
-                mdfilter_utf8 on;
-	}
+        location ~ /*.md {
+            mdfilter on;
+            mdfilter_utf8 on;
+        }
         // Use Handler module
-	location ~ /*.mkd {
-		mdhandler;
-                mdhandler_utf8 on;
-	}
+        location ~ /*.mkd {
+            mdhandler;
+            mdhandler_utf8 on;
+        }
     }
 
 ## TODO
