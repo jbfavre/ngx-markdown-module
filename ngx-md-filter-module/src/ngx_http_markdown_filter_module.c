@@ -65,7 +65,7 @@ static ngx_command_t  ngx_http_markdown_filter_commands[] = {
       offsetof(ngx_http_markdown_filter_conf_t, enable),
       NULL },
 
-    { ngx_string("mdfilter_utf8"),
+    { ngx_string("mdfilter-utf8"),
       NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
