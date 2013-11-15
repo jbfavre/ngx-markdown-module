@@ -58,13 +58,12 @@ Markdown filter module exports 2 configuration options
 
 ### Handler
 
-Markdown handler module exports 2 configuration options
+Markdown handler module exports 2 configuration option
 
-| Option         | Values   | Comment                                    |
-|----------------|----------|--------------------------------------------|
-| mdhandler      | -        | if present, enable module                  |
-| mdhandler-utf8 | on / off | enable / disable UTF8 content-type headers |
-
+| Option           | Values   | Comment                                       |
+|------------------|----------|-----------------------------------------------|
+| mdhandler        | -        | if present, enable module                     |
+| mdhandler-output | html     | if `html`, render as html. Raw in other cases |
 
 ### Sample Nginx configuration
 
@@ -87,9 +86,13 @@ Markdown handler module exports 2 configuration options
         // Use Handler module
         location ~ /*.mkd {
             mdhandler;
-            mdhandler_utf8 on;
+            mdhandler_output html;
         }
     }
+
+Then point to an existing file at `http://localhost/youfile.md`
+
+Or point to any file at `http://localhost/even_non_existing_file.mkd`
 
 ## TODO
 
