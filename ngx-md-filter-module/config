@@ -1,0 +1,20 @@
+ngx_feature="MarkdownFilter"
+ngx_feature_name=markdownfilter
+ngx_feature_run=no
+ngx_feature_incs="#include <mkdio.h>"
+ngx_feature_path=
+ngx_feature_libs=-lmarkdown
+ngx_feature_test=
+. auto/feature
+
+if [ $ngx_found = yes ]; then
+    ngx_addon_name=ngx_http_markdown_filter_module
+    HTTP_AUX_FILTER_MODULES="$HTTP_AUX_FILTER_MODULES ngx_http_markdown_filter_module"
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/src/ngx_http_markdown_filter_module.c"
+    CORE_LIBS="$CORE_LIBS -lmarkdown"
+else
+    cat << END
+$0: error: the Markdown filter addon requires libdiscount: http://www.pell.portland.or.us/~orc/Code/discount/.
+END
+    exit 1
+fi

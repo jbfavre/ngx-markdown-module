@@ -40,7 +40,7 @@ Install discount library development package
 Configure and build Nginx
 
     ./configure \
-        --add-module path_to_module_dir/ngx-markdown-module/filter \
+        --add-module path_to_module_dir/ngx-markdown-module/ngx-md-filter-module \
         --add-module path_to_module_dir/ngx-markdown-module/handler
     make
     make install
