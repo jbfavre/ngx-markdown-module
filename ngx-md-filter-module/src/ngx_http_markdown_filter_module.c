@@ -187,43 +187,44 @@ ngx_http_markdown_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
         if (!last)
             return ngx_http_next_body_filter(r, in);
-    }
 
-    ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown body filter creating new buffer");
-    b = ngx_calloc_buf(r->pool);
-    // If no buffer, then we have a problem.
-    if (b == NULL) {
-        return NGX_ERROR;
-    }
+        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown body filter creating new buffer");
+        b = ngx_calloc_buf(r->pool);
+        // If no buffer, then we have a problem.
+        if (b == NULL) {
+            return NGX_ERROR;
+        }
 
-    // Buffer designate a file.
-    if(cl->buf->in_file == 1) {
-        // Open File
-        // TODO: use ngx_ primitive to use integrated cache ?
-        md_file = fdopen(cl->buf->file->fd, "r");
-        if (!md_file) {
-            ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        // Buffer designate a file.
+        if(cl->buf->in_file == 1) {
+            // Open File
+            // TODO: use ngx_ primitive to use integrated cache ?
+            md_file = fdopen(cl->buf->file->fd, "r");
+            if (!md_file) {
+                ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                     "http markdown body filter file open [%s]",
                     strerror(errno));
-        }
+            }
         
-        // render as markdown from discount lib
-        mkd = mkd_in(md_file, MKD_FLAGS);
-        mkd_compile(mkd, MKD_FLAGS);
-        html_size = mkd_document(mkd, &html_content);
-    }
-    if (html_content) {
-        // Build new buffer with html_content from discount lib
-        b->pos = (u_char *) html_content;
-        b->last = b->pos + html_size - 1;
-        b->start = b->pos;
-        b->end = b->last;
-        b->last_buf = 1;
-        b->memory = 1;
+            // render as markdown from discount lib
+            mkd = mkd_in(md_file, MKD_FLAGS);
+            mkd_compile(mkd, MKD_FLAGS);
+            html_size = mkd_document(mkd, &html_content);
+        }
+        if (html_content) {
+            // Build new buffer with html_content from discount lib
+            b->pos = (u_char *) html_content;
+            b->last = b->pos + html_size - 1;
+            b->start = b->pos;
+            b->end = b->last;
+            b->last_buf = 1;
+            b->memory = 1;
 
-        // Replace previous buffer with our own one.
-        cl->buf = b;
+            // Replace previous buffer with our own one.
+            cl->buf = b;
+        }
     }
+
     return ngx_http_next_body_filter(r, in);
 }
 
