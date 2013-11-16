@@ -24,7 +24,11 @@
 #include <ngx_log.h>
 
 // We'll need this for markdown convertion
-#define MKD_FLAGS MKD_TOC  | MKD_AUTOLINK | MKD_TABSTOP | MKD_EXTRA_FOOTNOTE
+#define MKD_FLAGS MKD_TOC | MKD_AUTOLINK | MKD_TABSTOP | MKD_EXTRA_FOOTNOTE
+
+// Define response header to set a single point of modification
+#define RH_UTF8 "text/html; charset=\"UTF-8\""
+#define RH_NOT_UTF8 "text/html"
 
 // Initialisation function
 static ngx_int_t ngx_http_markdown_filter_init(ngx_conf_t *cf);
@@ -118,13 +122,13 @@ ngx_http_markdown_header_filter(ngx_http_request_t *r)
 
     // set new response headers
     if (conf->mdf_utf8) {
-        r->headers_out.content_type_len = sizeof("text/html; charset=\"UTF-8\"") - 1;
-        r->headers_out.content_type.len = sizeof("text/html; charset=\"UTF-8\"") - 1;
-        r->headers_out.content_type.data = (u_char *) "text/html; charset=\"UTF-8\"";
+        r->headers_out.content_type_len = sizeof(RH_UTF8) - 1;
+        r->headers_out.content_type.len = r->headers_out.content_type_len;
+        r->headers_out.content_type.data = (u_char *) RH_UTF8;
     }else{
-        r->headers_out.content_type_len = sizeof("text/html") - 1;
-        r->headers_out.content_type.len = sizeof("text/html") - 1;
-        r->headers_out.content_type.data = (u_char *) "text/html";
+        r->headers_out.content_type_len = sizeof(RH_NOT_UTF8) - 1;
+        r->headers_out.content_type.len = r->headers_out.content_type_len;
+        r->headers_out.content_type.data = (u_char *) RH_NOT_UTF8;
     }
     ngx_http_clear_content_length(r);
     ngx_http_clear_accept_ranges(r);
@@ -148,6 +152,11 @@ ngx_http_markdown_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     char                            *html_content;
     int                              html_size=0;
 
+    // r should be set, but why don't test it
+    if (NULL == r) {
+        return NGX_ERROR;
+    }
+
     ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown body filter starts");
 
     // Get module configuration
@@ -158,8 +167,10 @@ ngx_http_markdown_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     // Don't know exactly wht's going on here, but hey, it works :-/
-    for (cl = in; cl; cl = cl->next) {
-        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+    // Should test in however as we play with it
+    if (NULL != in) {
+        for (cl = in; cl; cl = cl->next) {
+            ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                     "http markdown body filter buf t:%d f:%d, "
                     "start: %p, pos: %p, size: %z "
                     "file_pos: %O, file_size: %z",
@@ -168,50 +179,52 @@ ngx_http_markdown_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                     cl->buf->last - cl->buf->pos,
                     cl->buf->file_pos,
                     cl->buf->file_last - cl->buf->file_pos);
-        if (cl->buf->last_buf) {
-            last = 1;
-            break;
+            if (cl->buf->last_buf) {
+                last = 1;
+                break;
+            }
         }
-    }
 
-    if (!last)
-        return ngx_http_next_body_filter(r, in);
+        if (!last)
+            return ngx_http_next_body_filter(r, in);
 
-    ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown body filter creating new buffer");
-    b = ngx_calloc_buf(r->pool);
-    // If no buffer, then we have a problem.
-    if (b == NULL) {
-        return NGX_ERROR;
-    }
+        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown body filter creating new buffer");
+        b = ngx_calloc_buf(r->pool);
+        // If no buffer, then we have a problem.
+        if (b == NULL) {
+            return NGX_ERROR;
+        }
 
-    // Buffer designate a file.
-    if(cl->buf->in_file == 1) {
-        // Open File
-        // TODO: use ngx_ primitive to use integrated cache ?
-        md_file = fdopen(cl->buf->file->fd, "r");
-        if (!md_file) {
-            ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        // Buffer designate a file.
+        if(cl->buf->in_file == 1) {
+            // Open File
+            // TODO: use ngx_ primitive to use integrated cache ?
+            md_file = fdopen(cl->buf->file->fd, "r");
+            if (!md_file) {
+                ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                     "http markdown body filter file open [%s]",
                     strerror(errno));
-        }
+            }
         
-        // render as markdown from discount lib
-        mkd = mkd_in(md_file, MKD_FLAGS);
-        mkd_compile(mkd, MKD_FLAGS);
-        html_size = mkd_document(mkd, &html_content);
-    }
-    if (html_content) {
-        // Build new buffer with html_content from discount lib
-        b->pos = (u_char *) html_content;
-        b->last = b->pos + html_size - 1;
-        b->start = b->pos;
-        b->end = b->last;
-        b->last_buf = 1;
-        b->memory = 1;
+            // render as markdown from discount lib
+            mkd = mkd_in(md_file, MKD_FLAGS);
+            mkd_compile(mkd, MKD_FLAGS);
+            html_size = mkd_document(mkd, &html_content);
+        }
+        if (html_content) {
+            // Build new buffer with html_content from discount lib
+            b->pos = (u_char *) html_content;
+            b->last = b->pos + html_size - 1;
+            b->start = b->pos;
+            b->end = b->last;
+            b->last_buf = 1;
+            b->memory = 1;
 
-        // Replace previous buffer with our own one.
-        cl->buf = b;
+            // Replace previous buffer with our own one.
+            cl->buf = b;
+        }
     }
+
     return ngx_http_next_body_filter(r, in);
 }
 
@@ -234,6 +247,10 @@ ngx_http_markdown_filter_create_conf(ngx_conf_t *cf)
 {
     ngx_http_markdown_filter_conf_t *conf;
 
+    if (NULL == cf) {
+        return NGX_CONF_ERROR;
+    }
+
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_markdown_filter_conf_t));
     if (conf == NULL) {
         return NGX_CONF_ERROR;
@@ -248,6 +265,10 @@ ngx_http_markdown_filter_create_conf(ngx_conf_t *cf)
 // Merge local conf with global one
 static char *
 ngx_http_markdown_filter_merge_conf(ngx_conf_t *cf, void *parent, void *child){
+    if (NULL == parent || NULL == child) {
+        return NGX_CONF_ERROR;
+    }
+
     ngx_http_markdown_filter_conf_t *prev = parent;
     ngx_http_markdown_filter_conf_t *conf = child;
 
