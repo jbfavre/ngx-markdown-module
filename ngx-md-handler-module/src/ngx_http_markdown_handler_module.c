@@ -23,80 +23,103 @@
 #include <ngx_http.h>
 #include <ngx_log.h>
 
-static char *
-ngx_http_markdown(ngx_conf_t * cf, ngx_command_t * cmd, void * conf);
+#define NGX_HTTP_MDHANDLER_PREALLOCATE  50
 
-static void* ngx_http_markdown_create_conf(ngx_conf_t *cf);
-static char* ngx_http_markdown_merge_conf(ngx_conf_t *cf,void *parent, void *child);
+// We'll need this for markdown convertion
+#define MKD_FLAGS MKD_TOC | MKD_AUTOLINK | MKD_TABSTOP | MKD_EXTRA_FOOTNOTE
+
+// Define response header to set a single point of modification
+#define RH_HTML_NOT_UTF8 "text/html"
+#define RH_HTML_UTF8 "text/html; charset=\"UTF-8\""
+#define RH_TEXT_NOT_UTF8 "text/plain"
+#define RH_TEXT_UTF8 "text/plain; charset=\"UTF-8\""
+
+static char *
+ngx_http_mdhandler_init(ngx_conf_t * cf, ngx_command_t * cmd, void * conf);
+
+static void* ngx_http_mdhandler_create_conf(ngx_conf_t *cf);
+static char* ngx_http_mdhandler_merge_conf(ngx_conf_t *cf,void *parent, void *child);
 
 static ngx_int_t
-ngx_http_markdown_handler(ngx_http_request_t *r);
-
-static u_char ngx_markdown_string[] = "# MARKDOWN MODULE";
+ngx_http_mdhandler_handler(ngx_http_request_t *r);
 
 typedef struct {
     ngx_flag_t enable;
     ngx_str_t output;
-} ngx_http_markdown_conf_t;
+} ngx_http_mdhandler_conf_t;
 
-static ngx_command_t  ngx_http_markdown_commands[] = {
+static ngx_command_t  ngx_http_mdhandler_commands[] = {
     { ngx_string("mdhandler"),
-      NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS,
-      ngx_http_markdown,
+      NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      0,
+      offsetof(ngx_http_mdhandler_conf_t, enable),
       NULL },
 
     { ngx_string("mdhandler-output"),
       NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_markdown_conf_t, output),
+      offsetof(ngx_http_mdhandler_conf_t, output),
       NULL },
 
       ngx_null_command
 };
 
-static ngx_http_module_t  ngx_http_markdown_module_ctx = {
+static ngx_http_module_t  ngx_http_mdhandler_module_ctx = {
     NULL,                               /* preconfiguration */
-    NULL,                               /* postconfiguration */
+    ngx_http_mdhandler_init,             /* postconfiguration */
     NULL,                               /* create main configuration */
     NULL,                               /* init main configuration */
     NULL,                               /* create server configuration */
     NULL,                               /* merge server configuration */
-    ngx_http_markdown_create_conf,      /* create location configuration */
-    ngx_http_markdown_merge_conf /* merge location configuration */
+    ngx_http_mdhandler_create_conf,      /* create location configuration */
+    ngx_http_mdhandler_merge_conf /* merge location configuration */
 };
 
-ngx_module_t  ngx_http_markdown_module = {
+ngx_module_t  ngx_http_mdhandler_module = {
     NGX_MODULE_V1,
-    &ngx_http_markdown_module_ctx, /* module context */
-    ngx_http_markdown_commands,    /* module directives */
-    NGX_HTTP_MODULE,               /* module type */
-    NULL,                          /* init master */
-    NULL,                          /* init module */
-    NULL,                          /* init process */
-    NULL,                          /* init thread */
-    NULL,                          /* exit thread */
-    NULL,                          /* exit process */
-    NULL,                          /* exit master */
+    &ngx_http_mdhandler_module_ctx, /* module context */
+    ngx_http_mdhandler_commands,    /* module directives */
+    NGX_HTTP_MODULE,                /* module type */
+    NULL,                           /* init master */
+    NULL,                           /* init module */
+    NULL,                           /* init process */
+    NULL,                           /* init thread */
+    NULL,                           /* exit thread */
+    NULL,                           /* exit process */
+    NULL,                           /* exit master */
     NGX_MODULE_V1_PADDING
 };
 
 static ngx_int_t
-ngx_http_markdown_handler(ngx_http_request_t *r)
+ngx_http_mdhandler_handler(ngx_http_request_t *r)
 {
     ngx_int_t                  rc;
     ngx_buf_t                 *b;
     ngx_chain_t                out;
-    ngx_http_markdown_conf_t  *conf;
+    ngx_http_mdhandler_conf_t  *conf;
 
-    char *html_content;
-    int html_size;
+    char                      *format;
+    ngx_str_t                  path;
+    u_char                    *last;
+    size_t                     root;
 
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler starts");
+    FILE                      *md_file;
+    MMIOT                     *mkd;
+    char                      *html_content;
+    int                        html_size=0;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_markdown_module);
+    // r should be set, but why don't test it
+    // If we miss it, no need to go
+    if (NULL == r) {
+        return NGX_ERROR;
+    }
+
+    ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler starts");
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_mdhandler_module);
+    format = (char *)conf->output.data;
 
     // only supports GET & HEAD methods
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
@@ -108,112 +131,127 @@ ngx_http_markdown_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler set headers");
+    ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler process md");
 
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler format is \"%s\"", conf->output.data);
-    char *format = (char *)conf->output.data;
-    if (strcmp(format, "html") == 0) {
-        // version 1. Take a hard-coded string & render it as HTML
-
-        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler process md");
-
-        int MKD_FLAGS = MKD_AUTOLINK;
-        MMIOT *mkd;
+    if (!strncmp(format, "html", sizeof("html")) == 0) {
 
         // set response headers
-        r->headers_out.content_type_len = sizeof("text/html; charset=\"UTF-8\"") - 1;
-        r->headers_out.content_type.len = sizeof("text/html; charset=\"UTF-8\"") - 1;
-        r->headers_out.content_type.data = (u_char *) "text/html; charset=\"UTF-8\"";
+        r->headers_out.content_type_len = sizeof(RH_TEXT_UTF8) - 1;
+        r->headers_out.content_type.len = r->headers_out.content_type_len;
+        r->headers_out.content_type.data = (u_char *) RH_TEXT_UTF8;
 
-        // render as markdown
-        mkd = mkd_string((char *)ngx_markdown_string, sizeof(ngx_markdown_string) - 1, MKD_FLAGS);
+        // and declined request handling
+        // so that nginx take care of te remaining stuff
+        // yes, I'm lazy
+        return NGX_DECLINED;
+    }else{
+
+        // set response headers
+        r->headers_out.content_type_len = sizeof(RH_HTML_UTF8) - 1;
+        r->headers_out.content_type.len = r->headers_out.content_type_len;
+        r->headers_out.content_type.data = (u_char *) RH_HTML_UTF8;
+
+        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler open md file [%s]", path.data);
+
+        if (NULL == (last = ngx_http_map_uri_to_path(r, &path, &root,
+                        NGX_HTTP_MDHANDLER_PREALLOCATE))) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        path.len  = last - path.data;
+        path.data[path.len] = '\0';
+
+        md_file = fopen((char *)path.data, "r");
+        if (!md_file) {
+            ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                "http markdown body filter fail to open [%s]",
+                strerror(errno));
+            return NGX_HTTP_NOT_FOUND;
+        }
+
+        // render as markdown from libdiscount
+        mkd = mkd_in(md_file, MKD_FLAGS);
         mkd_compile(mkd, MKD_FLAGS);
         html_size = mkd_document(mkd, &html_content);
 
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler send headers");
-    }else{
-        // Version 0. Take hard-coded string & render it as is.
 
-        // set response headers
-        r->headers_out.content_type_len = sizeof("text/plain") - 1;
-        r->headers_out.content_type.len = sizeof("text/plain") - 1;
-        r->headers_out.content_type.data = (u_char *) "text/plain";
+        // send the header only, if the request type is http HEAD
+        if (r->method == NGX_HTTP_HEAD) {
+            r->headers_out.status = NGX_HTTP_OK;
+            r->headers_out.content_length_n = html_size;
 
-        // render as is
-        html_content = (char *)ngx_markdown_string;
-        html_size = sizeof(ngx_markdown_string) - 1;
-    }
+            return ngx_http_send_header(r);
+        }
 
-    // send the header only, if the request type is http HEAD
-    if (r->method == NGX_HTTP_HEAD) {
+        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler create buffer");
+
+        b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
+        if (b == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        out.buf = b;
+        out.next = NULL;
+
+        b->pos = (u_char *)html_content;
+        b->last = (u_char *)html_content + html_size;
+        b-> memory = 1;
+        b->last_buf = 1;
+
+        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler send status");
+
         r->headers_out.status = NGX_HTTP_OK;
         r->headers_out.content_length_n = html_size;
 
-        return ngx_http_send_header(r);
+        rc = ngx_http_send_header(r);
+        if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+            return rc;
+        }
+        
+        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler ends");
+
+        return ngx_http_output_filter(r, &out);
     }
-
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler create buffer");
-
-    b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    out.buf = b;
-    out.next = NULL;
-
-    b->pos = (u_char *)html_content;
-    b->last = (u_char *)html_content + html_size;
-    b-> memory = 1;
-    b->last_buf = 1;
-
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler send status");
-
-    r->headers_out.status = NGX_HTTP_OK;
-    r->headers_out.content_length_n = html_size;
-
-    rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
-    }
-    
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler ends");
-
-    return ngx_http_output_filter(r, &out);
 }
 
 static char *
-ngx_http_markdown(ngx_conf_t * cf, ngx_command_t * cmd, void * conf)
+ngx_http_mdhandler_init(ngx_conf_t * cf, ngx_command_t * cmd, void * conf)
 {
+    ngx_http_handler_pt        *h;
+    ngx_http_core_main_conf_t  *cmcf;
 
-    ngx_http_core_loc_conf_t * clcf;
-    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_markdown_handler;
+    cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
 
-    // handler to process the mdhandler directive
-    return NGX_CONF_OK;
+    h = ngx_array_push(&cmcf->phases[NGX_HTTP_CONTENT_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+
+    *h = ngx_http_mdhandler_handler;
+
+    return NGX_OK;
 }
 
 static void *
-ngx_http_markdown_create_conf(ngx_conf_t *cf)
+ngx_http_mdhandler_create_conf(ngx_conf_t *cf)
 {
-    ngx_http_markdown_conf_t *conf;
+    ngx_http_mdhandler_conf_t *conf;
 
-    conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_markdown_conf_t));
+    conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_mdhandler_conf_t));
     if (conf == NULL) {
         return NGX_CONF_ERROR;
     }
+    conf->enable = NGX_CONF_UNSET;
 
     return conf;
 }
 
 static char *
-ngx_http_markdown_merge_conf(ngx_conf_t *cf, void *parent, void *child){
-    ngx_http_markdown_conf_t *prev = parent;
-    ngx_http_markdown_conf_t *conf = child;
+ngx_http_mdhandler_merge_conf(ngx_conf_t *cf, void *parent, void *child){
+    ngx_http_mdhandler_conf_t *prev = parent;
+    ngx_http_mdhandler_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
-
     ngx_conf_merge_str_value(conf->output, prev->output, "raw");
 
     return NGX_CONF_OK;
