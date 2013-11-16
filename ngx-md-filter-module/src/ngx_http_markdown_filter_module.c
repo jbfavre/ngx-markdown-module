@@ -238,6 +238,10 @@ ngx_http_markdown_filter_create_conf(ngx_conf_t *cf)
 {
     ngx_http_markdown_filter_conf_t *conf;
 
+    if (NULL == cf) {
+        return NGX_CONF_ERROR;
+    }
+
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_markdown_filter_conf_t));
     if (conf == NULL) {
         return NGX_CONF_ERROR;
