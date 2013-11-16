@@ -24,7 +24,7 @@
 #include <ngx_log.h>
 
 // We'll need this for markdown convertion
-#define MKD_FLAGS MKD_TOC  | MKD_AUTOLINK | MKD_TABSTOP | MKD_EXTRA_FOOTNOTE
+#define MKD_FLAGS MKD_TOC | MKD_AUTOLINK | MKD_TABSTOP | MKD_EXTRA_FOOTNOTE
 
 // Initialisation function
 static ngx_int_t ngx_http_markdown_filter_init(ngx_conf_t *cf);
