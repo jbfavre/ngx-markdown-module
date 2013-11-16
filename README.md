@@ -13,8 +13,10 @@ This module uses [discount library](http://www.pell.portland.or.us/~orc/Code/dis
 
 The module is available as:
 
-- a filter module (functional)
-- a handler module (not yet functional)
+- a filter module
+- a handler module
+
+Both are now functional.
 
 Configuration directives are different so you can use both module in parallel
 (but do not activate them for the same location).
@@ -62,7 +64,7 @@ Markdown handler module exports 2 configuration option
 
 | Option           | Values   | Comment                                       |
 |------------------|----------|-----------------------------------------------|
-| mdhandler        | -        | if present, enable module                     |
+| mdhandler        | on / off | enable / disable module                       |
 | mdhandler-output | html     | if `html`, render as html. Raw in other cases |
 
 ### Sample Nginx configuration
@@ -90,13 +92,11 @@ Markdown handler module exports 2 configuration option
         }
     }
 
-Then point to an existing file at `http://localhost/youfile.md`
-
-Or point to any file at `http://localhost/even_non_existing_file.mkd`
+Then point to an existing file at `http://localhost/youfile.md` or `http://localhost/youfile.mkd`
 
 ## TODO
 
-1. Add sanity checks :(
+1. [DONE] Add sanity checks, thanks to [mildis](https://github.com/mildis)
 2. Make use of nginx file cache layer to open files
 3. Add sanity checks :-/
 4. Make discount flags available as part of configuration
