@@ -152,6 +152,11 @@ ngx_http_markdown_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     char                            *html_content;
     int                              html_size=0;
 
+    // r should be set, but why don't test it
+    if (NULL == r) {
+        return NGX_ERROR;
+    }
+
     ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown body filter starts");
 
     // Get module configuration
@@ -162,8 +167,10 @@ ngx_http_markdown_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     // Don't know exactly wht's going on here, but hey, it works :-/
-    for (cl = in; cl; cl = cl->next) {
-        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+    // Should test in however as we play with it
+    if (NULL != in) {
+        for (cl = in; cl; cl = cl->next) {
+            ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                     "http markdown body filter buf t:%d f:%d, "
                     "start: %p, pos: %p, size: %z "
                     "file_pos: %O, file_size: %z",
@@ -172,14 +179,15 @@ ngx_http_markdown_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                     cl->buf->last - cl->buf->pos,
                     cl->buf->file_pos,
                     cl->buf->file_last - cl->buf->file_pos);
-        if (cl->buf->last_buf) {
-            last = 1;
-            break;
+            if (cl->buf->last_buf) {
+                last = 1;
+                break;
+            }
         }
-    }
 
-    if (!last)
-        return ngx_http_next_body_filter(r, in);
+        if (!last)
+            return ngx_http_next_body_filter(r, in);
+    }
 
     ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown body filter creating new buffer");
     b = ngx_calloc_buf(r->pool);
