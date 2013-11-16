@@ -256,6 +256,10 @@ ngx_http_markdown_filter_create_conf(ngx_conf_t *cf)
 // Merge local conf with global one
 static char *
 ngx_http_markdown_filter_merge_conf(ngx_conf_t *cf, void *parent, void *child){
+    if (NULL == parent || NULL == child) {
+        return NGX_CONF_ERROR;
+    }
+
     ngx_http_markdown_filter_conf_t *prev = parent;
     ngx_http_markdown_filter_conf_t *conf = child;
 
