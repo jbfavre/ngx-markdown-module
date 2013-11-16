@@ -26,6 +26,10 @@
 // We'll need this for markdown convertion
 #define MKD_FLAGS MKD_TOC | MKD_AUTOLINK | MKD_TABSTOP | MKD_EXTRA_FOOTNOTE
 
+// Define response header to set a single point of modification
+#define RH_UTF8 "text/html; charset=\"UTF-8\""
+#define RH_NOT_UTF8 "text/html"
+
 // Initialisation function
 static ngx_int_t ngx_http_markdown_filter_init(ngx_conf_t *cf);
 // Configuration management functions
@@ -118,13 +122,13 @@ ngx_http_markdown_header_filter(ngx_http_request_t *r)
 
     // set new response headers
     if (conf->mdf_utf8) {
-        r->headers_out.content_type_len = sizeof("text/html; charset=\"UTF-8\"") - 1;
-        r->headers_out.content_type.len = sizeof("text/html; charset=\"UTF-8\"") - 1;
-        r->headers_out.content_type.data = (u_char *) "text/html; charset=\"UTF-8\"";
+        r->headers_out.content_type_len = sizeof(RH_UTF8) - 1;
+        r->headers_out.content_type.len = r->headers_out.content_type_len;
+        r->headers_out.content_type.data = (u_char *) RH_UTF8;
     }else{
-        r->headers_out.content_type_len = sizeof("text/html") - 1;
-        r->headers_out.content_type.len = sizeof("text/html") - 1;
-        r->headers_out.content_type.data = (u_char *) "text/html";
+        r->headers_out.content_type_len = sizeof(RH_NOT_UTF8) - 1;
+        r->headers_out.content_type.len = r->headers_out.content_type_len;
+        r->headers_out.content_type.data = (u_char *) RH_NOT_UTF8;
     }
     ngx_http_clear_content_length(r);
     ngx_http_clear_accept_ranges(r);
