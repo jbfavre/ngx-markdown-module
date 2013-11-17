@@ -89,7 +89,7 @@ Markdown handler module exports 2 configuration option
         }
     }
 
-Then point to an existing file at `http://localhost/youfile.md` or `http://localhost/youfile.mkd`
+Then point to an existing file at `http://localhost/yourfile.md` or `http://localhost/yourfile.mkd`
 
 ## TODO
 
