@@ -23,8 +23,6 @@
 #include <ngx_http.h>
 #include <ngx_log.h>
 
-#define NGX_HTTP_MDHANDLER_PREALLOCATE  50
-
 // We'll need this for markdown convertion
 #define MKD_FLAGS MKD_TOC | MKD_AUTOLINK | MKD_TABSTOP | MKD_EXTRA_FOOTNOTE
 
@@ -153,12 +151,10 @@ ngx_http_mdhandler_handler(ngx_http_request_t *r)
 
         ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler open md file [%s]", path.data);
 
-        if (NULL == (last = ngx_http_map_uri_to_path(r, &path, &root,
-                        NGX_HTTP_MDHANDLER_PREALLOCATE))) {
+        if (NULL == (last = ngx_http_map_uri_to_path(r, &path, &root, 0))) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         path.len  = last - path.data;
-        path.data[path.len] = '\0';
 
         md_file = fopen((char *)path.data, "r");
         if (!md_file) {
