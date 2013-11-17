@@ -9,14 +9,11 @@ __It's likely to be insanely insecure, so... **DO NOT USE IT FOR PRODUCTION**.__
 
 You've been warned.
 
-This module uses [discount library](http://www.pell.portland.or.us/~orc/Code/discount/)
-
-The module is available as:
+This module uses [discount library](http://www.pell.portland.or.us/~orc/Code/discount/).
+The module exists in two versions:
 
 - a filter module
 - a handler module
-
-Both are now functional.
 
 Configuration directives are different so you can use both module in parallel
 (but do not activate them for the same location).
@@ -35,7 +32,7 @@ Install Nginx sources and dependencies.
     apt-get source nginx
     apt-get build-dep nginx
 
-Install discount library development package
+Install libdiscount development files
 
     apt-get install libmarkdown2-dev
 
@@ -43,7 +40,7 @@ Configure and build Nginx
 
     ./configure \
         --add-module path_to_module_dir/ngx-markdown-module/ngx-md-filter-module \
-        --add-module path_to_module_dir/ngx-markdown-module/handler
+        --add-module path_to_module_dir/ngx-markdown-module/ngx-md-handler-module
     make
     make install
 
