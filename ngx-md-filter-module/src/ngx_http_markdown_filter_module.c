@@ -190,12 +190,12 @@ ngx_http_markdown_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown body filter creating new buffer");
     b = ngx_calloc_buf(r->pool);
     // If no buffer, then we have a problem.
-    if (b == NULL) {
+    if (NULL == b) {
         return NGX_ERROR;
     }
 
     // Buffer designate a file.
-    if(cl->buf->in_file == 1) {
+    if(1 == cl->buf->in_file) {
         // Open File
         // TODO: use ngx_ primitive to use integrated cache ?
         md_file = fdopen(cl->buf->file->fd, "r");
@@ -250,7 +250,7 @@ ngx_http_markdown_filter_create_conf(ngx_conf_t *cf)
     }
 
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_markdown_filter_conf_t));
-    if (conf == NULL) {
+    if (NULL == conf) {
         return NGX_CONF_ERROR;
     }
     
