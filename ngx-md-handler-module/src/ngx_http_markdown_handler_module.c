@@ -43,7 +43,8 @@ ngx_http_mdhandler_handler(ngx_http_request_t *r);
 
 typedef struct {
     ngx_flag_t enable;
-    ngx_str_t output;
+    ngx_flag_t mdh_utf8;
+    ngx_str_t mdh_output;
 } ngx_http_mdhandler_conf_t;
 
 static ngx_command_t  ngx_http_mdhandler_commands[] = {
@@ -58,7 +59,14 @@ static ngx_command_t  ngx_http_mdhandler_commands[] = {
       NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_mdhandler_conf_t, output),
+      offsetof(ngx_http_mdhandler_conf_t, mdh_output),
+      NULL },
+
+    { ngx_string("mdhandler-utf8"),
+      NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_mdhandler_conf_t, mdh_utf8),
       NULL },
 
       ngx_null_command
@@ -117,7 +125,7 @@ ngx_http_mdhandler_handler(ngx_http_request_t *r)
     ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler starts");
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_mdhandler_module);
-    format = (char *)conf->output.data;
+    format = (char *)conf->mdh_output.data;
 
     // only supports GET & HEAD methods
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
@@ -134,20 +142,31 @@ ngx_http_mdhandler_handler(ngx_http_request_t *r)
     if (!0 == strncmp(format, "html", sizeof("html"))) {
 
         // set response headers
-        r->headers_out.content_type_len = sizeof(RH_TEXT_UTF8) - 1;
-        r->headers_out.content_type.len = r->headers_out.content_type_len;
-        r->headers_out.content_type.data = (u_char *) RH_TEXT_UTF8;
-
-        // and declined request handling
-        // so that nginx take care of te remaining stuff
+        if (conf->mdh_utf8) {
+            r->headers_out.content_type_len = sizeof(RH_TEXT_UTF8) - 1;
+            r->headers_out.content_type.len = r->headers_out.content_type_len;
+            r->headers_out.content_type.data = (u_char *) RH_TEXT_UTF8;
+        }else{
+            r->headers_out.content_type_len = sizeof(RH_TEXT_NOT_UTF8) - 1;
+            r->headers_out.content_type.len = r->headers_out.content_type_len;
+            r->headers_out.content_type.data = (u_char *) RH_TEXT_NOT_UTF8;
+        }
+        // and decline request handling
+        // so that nginx take care of the remaining stuff
         // yes, I'm lazy
         return NGX_DECLINED;
     }else{
 
         // set response headers
-        r->headers_out.content_type_len = sizeof(RH_HTML_UTF8) - 1;
-        r->headers_out.content_type.len = r->headers_out.content_type_len;
-        r->headers_out.content_type.data = (u_char *) RH_HTML_UTF8;
+        if (conf->mdh_utf8) {
+            r->headers_out.content_type_len = sizeof(RH_HTML_UTF8) - 1;
+            r->headers_out.content_type.len = r->headers_out.content_type_len;
+            r->headers_out.content_type.data = (u_char *) RH_HTML_UTF8;
+        }else{
+            r->headers_out.content_type_len = sizeof(RH_HTML_NOT_UTF8) - 1;
+            r->headers_out.content_type.len = r->headers_out.content_type_len;
+            r->headers_out.content_type.data = (u_char *) RH_HTML_NOT_UTF8;
+        }
 
         ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler open md file [%s]", path.data);
 
@@ -238,6 +257,7 @@ ngx_http_mdhandler_create_conf(ngx_conf_t *cf)
         return NGX_CONF_ERROR;
     }
     conf->enable = NGX_CONF_UNSET;
+    conf->mdh_utf8 = NGX_CONF_UNSET;
 
     return conf;
 }
@@ -248,7 +268,8 @@ ngx_http_mdhandler_merge_conf(ngx_conf_t *cf, void *parent, void *child){
     ngx_http_mdhandler_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
-    ngx_conf_merge_str_value(conf->output, prev->output, "raw");
+    ngx_conf_merge_value(conf->mdh_utf8, prev->mdh_utf8, 0);
+    ngx_conf_merge_str_value(conf->mdh_output, prev->mdh_output, "raw");
 
     return NGX_CONF_OK;
 }
