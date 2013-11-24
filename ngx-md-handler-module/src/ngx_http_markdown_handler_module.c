@@ -131,7 +131,7 @@ ngx_http_mdhandler_handler(ngx_http_request_t *r)
 
     ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler process md");
 
-    if (!strncmp(format, "html", sizeof("html")) == 0) {
+    if (!0 == strncmp(format, "html", sizeof("html"))) {
 
         // set response headers
         r->headers_out.content_type_len = sizeof(RH_TEXT_UTF8) - 1;
@@ -172,7 +172,7 @@ ngx_http_mdhandler_handler(ngx_http_request_t *r)
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler send headers");
 
         // send the header only, if the request type is http HEAD
-        if (r->method == NGX_HTTP_HEAD) {
+        if (NGX_HTTP_HEAD == r->method) {
             r->headers_out.status = NGX_HTTP_OK;
             r->headers_out.content_length_n = html_size;
 
@@ -182,7 +182,7 @@ ngx_http_mdhandler_handler(ngx_http_request_t *r)
         ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "http markdown handler create buffer");
 
         b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-        if (b == NULL) {
+        if (NULL == b) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
 
@@ -200,7 +200,7 @@ ngx_http_mdhandler_handler(ngx_http_request_t *r)
         r->headers_out.content_length_n = html_size;
 
         rc = ngx_http_send_header(r);
-        if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        if (NGX_ERROR == rc || rc > NGX_OK || r->header_only) {
             return rc;
         }
         
@@ -219,7 +219,7 @@ ngx_http_mdhandler_init(ngx_conf_t * cf, ngx_command_t * cmd, void * conf)
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
 
     h = ngx_array_push(&cmcf->phases[NGX_HTTP_CONTENT_PHASE].handlers);
-    if (h == NULL) {
+    if (NULL == h) {
         return NGX_ERROR;
     }
 
@@ -234,7 +234,7 @@ ngx_http_mdhandler_create_conf(ngx_conf_t *cf)
     ngx_http_mdhandler_conf_t *conf;
 
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_mdhandler_conf_t));
-    if (conf == NULL) {
+    if (NULL == conf) {
         return NGX_CONF_ERROR;
     }
     conf->enable = NGX_CONF_UNSET;
